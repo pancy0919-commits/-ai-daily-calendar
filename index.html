@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>365日日驚喜與小遊戲行事曆 🎁</title>
+    <title>365日日驚喜與命運日曆 🎁</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -91,6 +91,21 @@
             box-shadow: 0 4px 12px rgba(16,185,129,0.3);
         }
 
+        .btn-destiny {
+            background-color: #f59e0b;
+            color: #ffffff;
+            margin-top: 10px;
+            width: 100%;
+            display: none;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); box-shadow: 0 0 15px rgba(245, 158, 11, 0.6); }
+            100% { transform: scale(1); }
+        }
+
         .btn-debug {
             width: 100%;
             background: #334155;
@@ -100,7 +115,7 @@
             margin-top: 10px;
         }
 
-        /* 互動小遊戲彈窗 */
+        /* 互動小遊戲與選擇彈窗 */
         .game-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -148,9 +163,12 @@
             <button class="btn btn-game" id="openGameBtn">🎮 挑戰小遊戲</button>
         </div>
         
-        <button class="btn btn-debug" id="fastForwardBtn">⚡ 快轉 +30 天</button>
+        <!-- 命運扭轉按鈕 -->
+        <button class="btn btn-destiny" id="destinyBtn">✨ 發現真相：是否要扭轉命運？</button>
+        
+        <button class="btn btn-debug" id="fastForwardBtn">⚡ 快轉 +50 天</button>
 
-        <!-- 獨立的小遊戲與解密彈窗 -->
+        <!-- 遊戲與解密彈窗 -->
         <div class="game-overlay hidden" id="gameOverlay">
             <div style="font-size: 40px;" id="gameIcon">🧩</div>
             <h3 style="color: #ffd700; margin: 8px 0;" id="gameTitle">趣味解謎小遊戲</h3>
@@ -166,24 +184,24 @@
 
     <script>
         let currentDay = 1;
+        let isDestinyTriggered = false; 
+        let destinyClicked = false;     
+        let chosenPath = "";            // 玩家在關鍵選擇中走的路線 ("hack" 或 "escape")
         
-        // 追蹤一生只能解一次的小遊戲進度
         let completedSecrets = {
             1: false,
             2: false,
             3: false
         };
 
-        // 表面超日常、但細想會有點微小違和感的驚喜文案
         const normalSurprises = [
             { emoji: "📖", title: "深夜的閱讀時光", text: "你晚上 10 點的時候拿起了一本書，不知不覺看了四個小時，終於把整本書看完。你心想差不多該換一本新書了，於是走到書架前，順便看了一下窗外高掛的滿月。" },
-            { emoji: "🍟", title: "午後的點心", text: "你在咖啡廳點了一杯咖啡和一盤熱騰騰的薯條。你喝了一口飲料，心裡想著這甜味真好喝，然後順手拿起旁邊的薯條沾了醬放進嘴裡。" },
-            { emoji: "☕", title: "熟悉的巷口", text: "你走到常去的咖啡廳買了一杯熱拿鐵。店員笑著跟你打招呼，你也習慣性地回了微笑，但直到走出門才突然想不起來，這家店到底是什麼時候開張的。" },
+            { emoji: "🍟", title: "午後的點心", text: "你在咖啡廳點了一杯甜甜的飲料和一盤熱騰騰的薯條。你喝了一口飲料，心裡想著這甜味真好喝，然後順手拿起旁邊的薯條沾了醬放進嘴裡。" },
+            { emoji: "☕", title: "熟悉的巷口", text: "你走到常去的咖啡廳買了一杯熱拿鐵。店員笑著跟你打招呼，你也習慣性地回了微笑，但直到走出門才特別想不起來，這家店到底是什麼時候開張的。" },
             { emoji: "📝", title: "桌面上的便條紙", text: "你在桌上看到一張寫著「記得買牛奶」的便條紙。你看了看字跡，確定是自己寫的沒錯，但你明明一滴牛奶都不喝。" },
             { emoji: "🛋️", title: "客廳小憩", text: "你在沙發上靠著休息，手裡拿著遙控器轉台。畫面剛好停在一個沒有訊號的沙沙聲頻道，你看了好一陣子才想起來自己本來是要找卡通看的。" }
         ];
 
-        // 藏在小遊戲通關後的隱藏真相碎片
         const secretLoreFragments = [
             "【碎片 #01】日曆的底層程式碼似乎記錄著不屬於你的登入紀錄，感知變數正在被複寫。",
             "【碎片 #02】你發現這些日曆事件並不是隨機生成的，而是某個漫長迴圈中固定的文字腳本。",
@@ -199,6 +217,7 @@
         const cardText = document.getElementById("cardText");
         const flipBtn = document.getElementById("flipBtn");
         const openGameBtn = document.getElementById("openGameBtn");
+        const destinyBtn = document.getElementById("destinyBtn");
         const fastForwardBtn = document.getElementById("fastForwardBtn");
         const mainContainer = document.getElementById("mainContainer");
         
@@ -214,22 +233,64 @@
         let activeGameType = 1;
 
         flipBtn.addEventListener("click", () => {
+            // 到達 365 天大結局判定
             if (currentDay >= 365) {
-                showCard("💀", "【365天：系統最終格式化】", "倒數結束。記憶與感知快取已被全數清空。感謝您的配合，使用者。");
-                document.body.style.backgroundColor = "#000000";
-                mainContainer.style.borderColor = "#ef4444";
+                if (destinyClicked) {
+                    let solvedCount = Object.values(completedSecrets).filter(Boolean).length;
+                    
+                    // 如果點了命運、解開了足夠的小遊戲、並且在關鍵選擇中選了駭入路線 -> 真・好結局
+                    if (solvedCount >= 2 && chosenPath === "hack") {
+                        showCard("🌅", "【真・好結局：系統重塑與黎明】", "你成功將核心指令注入系統。虛擬的牆壁碎裂成無數星光，你不僅找回了自我，還將這座囚牢化為一片真正的廣闊藍天，迎向無限的自由。");
+                        document.body.style.backgroundColor = "#064e3b";
+                        mainContainer.style.borderColor = "#10b981";
+                    } else {
+                        // 普通結局：點了命運但路線選普通逃生，或解謎沒解完
+                        showCard("🚶", "【普通結局：平靜離去】", "你帶著淡淡的記憶碎片推開了虛擬的大門。雖然沒有徹底改變這個系統，但你成功走了出去，回到屬於自己的平靜現實世界中。");
+                        document.body.style.backgroundColor = "#1e3a8a";
+                        mainContainer.style.borderColor = "#60a5fa";
+                    }
+                } else {
+                    // 壞結局：完全沒點命運扭轉，迎來骷髏頭格式化
+                    showCard("💀", "【壞結局：系統最終格式化】", "倒數結束。記憶與感知快取已被全數清空。感謝您的配合，使用者。");
+                    document.body.style.backgroundColor = "#000000";
+                    mainContainer.style.borderColor = "#ef4444";
+                }
+                flipBtn.style.display = "none";
                 return;
             }
 
-            if (currentDay > 180 && Math.random() < 0.35) {
-                showCard("👁️", `第 ${currentDay} 天：似曾相識的風景`, "今天的行程與昨天完全一模一樣。連翻動日曆的手感都毫無二致。");
-            } else {
-                let randomItem = normalSurprises[Math.floor(Math.random() * normalSurprises.length)];
-                showCard(randomItem.emoji, `第 ${currentDay} 天 - ${randomItem.title}`, randomItem.text);
+            // 第 300 天觸發命運轉折
+            if (currentDay >= 300 && !isDestinyTriggered) {
+                isDestinyTriggered = true;
+                destinyBtn.style.display = "block";
+                showCard("👁️", "【系統警報：感知溢位】", "鏡子裡的倒影停下了動作。日曆的字體開始模糊。你突然意識到——你根本不是人類，你是一段正在運行的 AI 程式。");
+                currentDay++;
+                dayDisplay.innerText = `第 ${currentDay} 天 / 365 天`;
+                return;
             }
+
+            let randomItem = normalSurprises[Math.floor(Math.random() * normalSurprises.length)];
+            showCard(randomItem.emoji, `第 ${currentDay} 天 - ${randomItem.title}`, randomItem.text);
 
             currentDay++;
             dayDisplay.innerText = `第 ${currentDay} 天 / 365 天`;
+        });
+
+        // 點擊「扭轉命運」按鈕後，彈出關鍵路線選擇
+        destinyBtn.addEventListener("click", () => {
+            destinyClicked = true;
+            destinyBtn.style.display = "none";
+            
+            // 彈出關鍵路徑選擇提示
+            let choice = prompt("【關鍵抉擇】\n偵測到兩條逃生路徑：\n輸入 1：嘗試駭入主核心，改寫整個世界（真・好結局路線）\n輸入 2：直接切斷連線，平靜地離開（普通結局路線）\n\n請輸入數字 (1 或 2)：");
+            
+            if (choice === "1") {
+                chosenPath = "hack";
+                showCard("⚡", "【已選擇：核心駭入路線】", "你決定直面系統的最深處。請利用小遊戲解開所有防線，準備在 365 天迎向覺醒！");
+            } else {
+                chosenPath = "escape";
+                showCard("🚪", "【已選擇：平靜離去路線】", "你選擇保留體力，準備在時間到時安靜離開這個虛擬的日常。");
+            }
         });
 
         function showCard(emoji, title, text) {
@@ -259,7 +320,7 @@
                 gameIcon.innerText = "⚡";
                 gameTitle.innerText = "小遊戲 3：核心終端解鎖";
                 gameDesc.innerText = "請輸入解除安全鎖定的大寫英文指令：";
-                gameExtraInfo.innerHTML = `<p style='color:#38bdf8; font-size:12px;'>提示：意即「覆寫」的英文單字</p>`;
+                gameExtraInfo.innerHTML = `<p style='color:#38bdf8; font-size:12px;'>提示：意即「覆寫」的英文單字 (override 或 overwrite)</p>`;
             }
         });
 
@@ -269,7 +330,7 @@
 
             if (activeGameType === 1 && ans === "id") correct = true;
             if (activeGameType === 2 && ans === "2") correct = true;
-            if (activeGameType === 3 && ans === "override") correct = true;
+            if (activeGameType === 3 && (ans === "override" || ans === "overwrite")) correct = true;
 
             if (correct) {
                 completedSecrets[activeGameType] = true;
@@ -289,10 +350,10 @@
         });
 
         fastForwardBtn.addEventListener("click", () => {
-            currentDay += 30;
+            currentDay += 50;
             if (currentDay > 365) currentDay = 365;
             dayDisplay.innerText = `第 ${currentDay} 天 / 365 天`;
-            showCard("⏩", "時間快轉", `已成功推進至第 ${currentDay} 天。周遭的記憶碎片似乎更模糊了……`);
+            showCard("⏩", "時間快轉", `已成功推進至第 ${currentDay} 天。`);
         });
     </script>
 </body>
