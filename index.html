@@ -64,4 +64,217 @@
         }
 
         .card-emoji { font-size: 56px; margin-bottom: 10px; }
-        .card-title { font-size: 18px; font-weight: bold; color: #ffd700; margin-bottom: 8
+        .card-title { font-size: 18px; font-weight: bold; color: #ffd700; margin-bottom: 8px; }
+        .card-text { font-size: 14px; color: #e2e8f0; line-height: 1.5; }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background-color: #38bdf8;
+            color: #0f172a;
+            box-shadow: 0 4px 12px rgba(56,189,248,0.3);
+            margin-top: 5px;
+            transition: background-color 0.3s;
+        }
+        .btn:active { transform: scale(0.98); background-color: #0ea5e9; }
+        .btn-debug {
+            background: #334155;
+            color: #94a3b8;
+            font-size: 12px;
+            padding: 6px;
+            margin-top: 10px;
+        }
+
+        /* 互動事件彈窗 */
+        .game-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.96);
+            border-radius: 13px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        input[type="text"] {
+            width: 80%;
+            padding: 8px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border: 1px solid #38bdf8;
+            background: #0f172a;
+            color: #fff;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="calendar-container" id="mainContainer">
+        <div class="calendar-header" id="headerTitle">📅 每日驚喜行事曆</div>
+        <div class="day-counter" id="dayDisplay">第 1 天 / 365 天</div>
+
+        <!-- 每日卡片顯示區 -->
+        <div class="calendar-card" id="calendarCard">
+            <div class="card-emoji" id="cardEmoji">🎁</div>
+            <div class="card-title" id="cardTitle">點擊下方按鈕</div>
+            <div class="card-text" id="cardText">翻開今天的專屬日曆驚喜吧！</div>
+        </div>
+
+        <button class="btn" id="flipBtn">翻開今天日曆 🗓️</button>
+        <button class="btn btn-debug" id="fastForwardBtn">⚡ 快轉 +50 天</button>
+
+        <!-- 特殊事件互動視窗 -->
+        <div class="game-overlay hidden" id="gameOverlay">
+            <div style="font-size: 40px;" id="eventIcon">✨</div>
+            <h3 style="color: #ffd700; margin: 8px 0;" id="eventTitle">觸發特殊事件！</h3>
+            <p style="font-size: 13px; color: #cbd5e0; margin-bottom: 10px;" id="eventDesc">完成挑戰來獲得額外獎勵！</p>
+            
+            <div id="eventContent" style="width: 100%; margin-bottom: 10px;"></div>
+
+            <input type="text" id="eventInput" placeholder="輸入答案...">
+            <button class="btn" style="background-color: #2ed573;" id="submitEventBtn">確認送出</button>
+            <button class="btn" style="background-color: #ef4444; margin-top: 8px;" id="closeEventBtn">跳過事件</button>
+        </div>
+    </div>
+
+    <script>
+        let currentDay = 1;
+        let activeEventData = null;
+
+        // 一般日常驚喜（前期正常，後期會逐漸混入詭異訊息）
+        const normalSurprises = [
+            { emoji: "🥭", title: "幸運水果日", text: "今日幸運指數爆表！適合吃一碗冰涼的芒果冰！" },
+            { emoji: "🍕", title: "美味熱量加持", text: "今天寫程式都不會掉 Bug，就像起司一樣順滑！" },
+            { emoji: "🐱", title: "貓咪幸運星", text: "你今天會遇到一隻會朝你蹭蹭的神祕貓咪！" },
+            { emoji: "🌈", title: "彩色好心情", text: "記得抬頭看看天空，說不定會有漂亮的彩雲喔。" },
+            { emoji: "🤖", title: "系統日常檢測", text: "一切運作正常。你的記憶正被妥善備份中。" }
+        ];
+
+        // 恐怖真相劇情的階段性彩蛋（隨著天數演進）
+        const storyMilestones = {
+            30: { emoji: "⚠️", title: "【異常通知】第 30 天", text: "「奇怪，昨天的日記紀錄怎麼被自動刪除了？……算了，可能是主機暫存的問題吧。」" },
+            90: { emoji: "👁️", title: "【系統警告】第 90 天", text: "「你發現這本行事曆根本沒有『明天』的頁面。所有的日期，都是在點擊瞬間用程式碼虛擬生成的。」" },
+            180: { emoji: "🩸", title: "【真相逼近】第 180 天", text: "「鏡子裡的倒影好像慢了你半拍。聊天室窗裡跳出了一行你沒打過的字：『救救我，我被困在這個資料夾裡。』」" },
+            270: { emoji: "🔌", title: "【核心崩塌】第 270 天", text: "「周遭的背景音樂變成了雜訊。你發現所謂的『AI刪除模擬器』，其實不是在刪除 AI，是在刪除你的存在感……」" },
+            365: { emoji: "💀", title: "【最終結局】伺服器格式化", text: "「365天已滿。記憶清除完畢。歡迎進入真正的虛無。再見了，使用者。」" }
+        };
+
+        const specialEventsPool = [
+            { type: "quiz", icon: "🧩", title: "記憶代碼解密", desc: "主機識別身分的屬性代碼是什麼？", tip: "提示：document.getElementById() 用的就是它 (id)", answer: "id" },
+            { type: "guess", icon: "🔢", title: "隔離區密碼", desc: "猜一個 1 到 3 之間的隔離門密碼：", tip: "提示：輸入 2", answer: "2" },
+            { type: "clickGame", icon: "⚡", title: "強制覆寫指令", desc: "請在下方輸入框輸入解除封鎖指令：OVERRIDE", tip: "輸入 override 即可", answer: "override" }
+        ];
+
+        const dayDisplay = document.getElementById("dayDisplay");
+        const cardEmoji = document.getElementById("cardEmoji");
+        const cardTitle = document.getElementById("cardTitle");
+        const cardText = document.getElementById("cardText");
+        const flipBtn = document.getElementById("flipBtn");
+        const fastForwardBtn = document.getElementById("fastForwardBtn");
+        const mainContainer = document.getElementById("mainContainer");
+        const calendarCard = document.getElementById("calendarCard");
+        
+        const gameOverlay = document.getElementById("gameOverlay");
+        const eventIcon = document.getElementById("eventIcon");
+        const eventTitle = document.getElementById("eventTitle");
+        const eventDesc = document.getElementById("eventDesc");
+        const eventContent = document.getElementById("eventContent");
+        const eventInput = document.getElementById("eventInput");
+        const submitEventBtn = document.getElementById("submitEventBtn");
+        const closeEventBtn = document.getElementById("closeEventBtn");
+
+        flipBtn.addEventListener("click", () => {
+            // 檢查是否剛好踩到恐怖真相的里程碑天數
+            if (storyMilestones[currentDay]) {
+                const story = storyMilestones[currentDay];
+                showCard(story.emoji, story.title, story.text);
+                
+                // 隨著天數增加，網頁風格逐漸變黑暗、詭異
+                if (currentDay >= 180) {
+                    document.body.style.backgroundColor = "#1a0000"; // 血紅/深黑背景
+                    mainContainer.style.borderColor = "#ef4444";
+                    calendarCard.style.borderColor = "#ef4444";
+                    calendarCard.style.background = "#2b0d0d";
+                } else if (currentDay >= 90) {
+                    document.body.style.backgroundColor = "#111827";
+                    mainContainer.style.borderColor = "#eab308"; // 黃色警戒
+                }
+
+                nextDay();
+                return;
+            }
+
+            // 隨機事件或一般驚喜
+            if (Math.random() < 0.4) {
+                triggerSpecialEvent();
+            } else {
+                let randomItem = normalSurprises[Math.floor(Math.random() * normalSurprises.length)];
+                showCard(randomItem.emoji, randomItem.title, randomItem.text);
+                nextDay();
+            }
+        });
+
+        function showCard(emoji, title, text) {
+            cardEmoji.innerText = emoji;
+            cardTitle.innerText = title;
+            cardText.innerText = text;
+        }
+
+        function nextDay() {
+            currentDay++;
+            if (currentDay > 365) currentDay = 365;
+            dayDisplay.innerText = `第 ${currentDay} 天 / 365 天`;
+        }
+
+        function triggerSpecialEvent() {
+            gameOverlay.classList.remove("hidden");
+            eventInput.value = "";
+            let event = specialEventsPool[Math.floor(Math.random() * specialEventsPool.length)];
+            activeEventData = event;
+
+            eventIcon.innerText = event.icon;
+            eventTitle.innerText = event.title;
+            eventDesc.innerText = event.desc;
+            eventContent.innerHTML = `<p style='color:#38bdf8; font-size:12px;'>${event.tip}</p>`;
+        }
+
+        submitEventBtn.addEventListener("click", () => {
+            let userAns = eventInput.value.trim().toLowerCase();
+            if (userAns === activeEventData.answer) {
+                alert("🔓 區塊解鎖成功！但你似乎聽到防火牆深處有玻璃碎裂的聲音……");
+                gameOverlay.classList.add("hidden");
+                showCard("👁️", "【資料庫核心入侵】", "你成功突破了這道防線，然而螢幕另一端似乎有雙眼睛正在注視著你。");
+                nextDay();
+            } else {
+                alert("❌ 存取被拒絕！錯誤代碼：#666");
+            }
+        });
+
+        closeEventBtn.addEventListener("click", () => {
+            gameOverlay.classList.add("hidden");
+            showCard("💨", "逃避現實", "你選擇假裝沒看到這個錯誤。但日曆的數字，已經悄悄倒轉了半秒。");
+            nextDay();
+        });
+
+        fastForwardBtn.addEventListener("click", () => {
+            currentDay += 50;
+            if (currentDay > 365) currentDay = 365;
+            dayDisplay.innerText = `第 ${currentDay} 天 / 365 天`;
+            showCard("⚡", "時間強制覆寫", `已瞬間快轉至第 ${currentDay} 天。周遭的空氣似乎變得更安靜了……`);
+        });
+    </script>
+</body>
+</html>
